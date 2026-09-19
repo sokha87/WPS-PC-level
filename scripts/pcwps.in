@@ -63,7 +63,8 @@ case "$MODE" in
   *) echo "usage: pcwps [writer|et|wpp|pdf|desktop|show|stop] [--no-window] [--quiet]" >&2; exit 2 ;;
 esac
 
-XSOCK="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/.X11-unix/X0"
+XSOCK_DIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/.X11-unix"
+XSOCK="$XSOCK_DIR/X0"
 
 # Android's package-visibility rules mean `pm list packages` run from Termux
 # often cannot see Termux:X11 even when it is installed, so presence is never
@@ -86,9 +87,17 @@ show_window() {
 # Run an app inside the container. start-wps-session only starts a window
 # manager if one is not already running, so this is safe to call against a
 # session that is already up.
+#
+# The container needs to reach the X server's socket, which lives in Termux's
+# tmp. `--shared-tmp` is the obvious way to arrange that, but some
+# proot-distro/proot combinations mishandle it and proot bails with
+# `expected absolute path: "--shm-helper"`, so bind exactly the one directory
+# that matters instead. This is the same --bind form the installer uses.
 run_app() {
-  proot-distro login "$DISTRO" --shared-tmp -- \
-    /bin/bash -lc "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$1'"
+  proot-distro login "$DISTRO" \
+    --bind "$XSOCK_DIR:/tmp/.X11-unix" \
+    -- /bin/bash -lc \
+    "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$1'"
 }
 
 # Already running? Then a tap on a launcher icon should surface it, not tear

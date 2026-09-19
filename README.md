@@ -260,6 +260,12 @@ start. Nothing is checked up front now.
 If you genuinely don't have it, that is step 2 above: the `termux-x11-nightly`
 *package* is only the server half, the APK is the window.
 
+**`error: expected absolute path: "--shm-helper"`** — fixed; update with
+`git pull && bash scripts/update-launcher.sh`. `pcwps` used `--shared-tmp` to
+give the container access to the X socket, and some proot-distro/proot version
+pairs mishandle that flag. It now binds the socket directory explicitly, the
+same way the installer does.
+
 **Black window in Termux:X11** — the desktop is still starting (first launch can
 take 30s). If it stays black, `pcwps stop`, then `pcwps` again.
 
