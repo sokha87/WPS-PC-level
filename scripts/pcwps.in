@@ -22,6 +22,8 @@
 #                    you want it. This is what the boot hook uses by default.
 #   --quiet          suppress progress output (the boot hook logs to a file)
 #
+# Set PCWPS_DEBUG=1 to print the exact proot-distro command before running it.
+#
 set -u
 
 DISTRO="@DISTRO@"
@@ -94,10 +96,30 @@ show_window() {
 # `expected absolute path: "--shm-helper"`, so bind exactly the one directory
 # that matters instead. This is the same --bind form the installer uses.
 run_app() {
-  proot-distro login "$DISTRO" \
-    --bind "$XSOCK_DIR:/tmp/.X11-unix" \
-    -- /bin/bash -lc \
-    "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$1'"
+  local args=("$DISTRO")
+
+  # Only bind the socket directory if it actually exists. proot rejects a
+  # missing or non-absolute bind source, and the failure is opaque.
+  if [ -d "$XSOCK_DIR" ]; then
+    args+=(--bind "$XSOCK_DIR:/tmp/.X11-unix")
+  else
+    warn "no X socket directory at $XSOCK_DIR — continuing without binding it"
+  fi
+
+  args+=(-- /bin/bash -lc \
+    "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$1'")
+
+  if [ "${PCWPS_DEBUG:-0}" = 1 ]; then
+    printf '\033[1;35mdebug:\033[0m TMPDIR=[%s]\n' "${TMPDIR:-}"
+    printf '\033[1;35mdebug:\033[0m XSOCK_DIR=[%s] exists=%s\n' \
+      "$XSOCK_DIR" "$([ -d "$XSOCK_DIR" ] && echo yes || echo no)"
+    printf '\033[1;35mdebug:\033[0m proot-distro login'
+    printf ' [%s]' "${args[@]}"
+    printf '\n'
+    ls -la "$XSOCK_DIR" 2>&1 | sed 's/^/debug:   /'
+  fi
+
+  proot-distro login "${args[@]}"
 }
 
 # Already running? Then a tap on a launcher icon should surface it, not tear
@@ -124,6 +146,8 @@ log "Starting audio server"
 pulseaudio --start --exit-idle-time=-1 \
   --load="module-native-protocol-tcp auth-ip-acl=127.0.0.1 auth-anonymous=1" \
   >/dev/null 2>&1 || warn "pulseaudio did not start; the session will be silent"
+
+mkdir -p "$XSOCK_DIR" 2>/dev/null || true
 
 log "Starting X server"
 XDG_RUNTIME_DIR="${TMPDIR:-/data/data/com.termux/files/usr/tmp}" \
