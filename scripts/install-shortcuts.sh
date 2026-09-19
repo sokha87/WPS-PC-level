@@ -14,7 +14,9 @@
 set -euo pipefail
 
 DISTRO="${DISTRO:-debian}"
-ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/common.sh
+. "$HERE/common.sh"
 SHORTCUTS="$HOME/.shortcuts"
 ICONS="$SHORTCUTS/icons"
 
@@ -43,7 +45,7 @@ if [ "${1:-}" = --uninstall ]; then
 fi
 
 command -v pcwps >/dev/null || die "pcwps is not installed. Run install.sh first."
-[ -d "$ROOTFS" ] || die "No '$DISTRO' container found. Run install.sh first."
+ROOTFS="$(find_rootfs "$DISTRO")" || die "No '$DISTRO' container found. Run install.sh first."
 
 if ! pm list packages 2>/dev/null | grep -q 'com\.termux\.widget'; then
   cat >&2 <<'MSG'

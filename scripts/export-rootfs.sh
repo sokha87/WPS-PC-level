@@ -14,13 +14,15 @@
 set -euo pipefail
 
 DISTRO="${DISTRO:-debian}"
-ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
+HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/common.sh
+. "$HERE/common.sh"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }
 die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
-[ -d "$ROOTFS" ] || die "No '$DISTRO' container found. Run install.sh first."
+ROOTFS="$(find_rootfs "$DISTRO")" || die "No '$DISTRO' container found. Run install.sh first."
 [ -x "$ROOTFS/usr/bin/wps" ] || warn "WPS not found in the container — exporting anyway"
 
 # zstd compresses this kind of tree much faster than xz at a similar ratio.

@@ -25,8 +25,9 @@ PROFILE="${PROFILE:-slim}"     # slim = WPS only; desktop = full XFCE
 FONTS="${FONTS:-minimal}"      # minimal = Latin+Khmer; full = adds CJK (+330 MB)
 TRIM="${TRIM:-1}"              # drop docs/man/locales after install
 TRIM_MUI="${TRIM_MUI:-}"       # WPS UI languages to keep, e.g. "en_US"
-ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
 HERE="$(cd "$(dirname "$0")" && pwd)"
+# shellcheck source=scripts/common.sh
+. "$HERE/scripts/common.sh"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }
@@ -65,12 +66,10 @@ pkg install -y termux-x11-nightly pulseaudio >/dev/null
 
 # ------------------------------------------------------------- debian rootfs
 
-if [ -d "$ROOTFS" ]; then
-  log "proot-distro '$DISTRO' already installed — reusing it"
-else
-  log "Installing $DISTRO rootfs (this downloads a few hundred MB)"
-  proot-distro install "$DISTRO"
-fi
+# proot-distro decides whether the container exists -- a directory check is
+# wrong, because where it keeps rootfs has changed between versions.
+log "Ensuring the $DISTRO container exists (first run downloads a few hundred MB)"
+ensure_distro "$DISTRO" || die "proot-distro could not install '$DISTRO'"
 
 # ---------------------------------------------- fetch the WPS .deb (Termux side)
 # Downloading here rather than inside proot: Termux's network stack is faster and
@@ -182,19 +181,15 @@ log "WPS package ready: $(du -h "$DEB_DIR/wps-office_arm64.deb" | cut -f1)"
 
 # ------------------------------------------------- stage files into the rootfs
 
-log "Staging setup scripts into the $DISTRO rootfs"
-install -d "$ROOTFS/root/pc-wps"
-install -m 0755 "$HERE/scripts/debian-setup.sh" "$ROOTFS/root/pc-wps/debian-setup.sh"
-install -m 0755 "$HERE/scripts/start-wps-session" "$ROOTFS/root/pc-wps/start-wps-session"
-cp -f "$DEB_DIR/wps-office_arm64.deb" "$ROOTFS/root/pc-wps/wps-office_arm64.deb"
-
+# Bind the scripts and the package into the container instead of copying them
+# into its rootfs: no rootfs path to get wrong, and no second 350 MB copy.
 log "Running in-container setup (PROFILE=$PROFILE, FONTS=$FONTS — takes a while)"
-proot-distro login "$DISTRO" -- /bin/bash -c \
+proot-distro login "$DISTRO" \
+  --bind "$HERE/scripts:/mnt/pc-wps-scripts" \
+  --bind "$DEB_DIR:/mnt/pc-wps-deb" \
+  -- /bin/bash -c \
   "PROFILE='$PROFILE' FONTS='$FONTS' TRIM='$TRIM' TRIM_MUI='$TRIM_MUI' \
-   /bin/bash /root/pc-wps/debian-setup.sh"
-
-# free the staged copy; the .deb is installed now
-rm -f "$ROOTFS/root/pc-wps/wps-office_arm64.deb"
+   /bin/bash /mnt/pc-wps-scripts/debian-setup.sh"
 
 # ---------------------------------------------------------- install launcher
 

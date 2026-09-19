@@ -24,9 +24,10 @@ TRIM="${TRIM:-1}"
 TRIM_MUI="${TRIM_MUI:-}"
 
 export DEBIAN_FRONTEND=noninteractive
-STAGE=/root/pc-wps
-DEB="$STAGE/wps-office_arm64.deb"
-[ -f "$DEB" ] || { echo "missing $DEB" >&2; exit 1; }
+# Both directories are bind-mounted in by install.sh.
+STAGE=/mnt/pc-wps-scripts
+DEB=/mnt/pc-wps-deb/wps-office_arm64.deb
+[ -f "$DEB" ] || { echo "missing $DEB (is it bind-mounted?)" >&2; exit 1; }
 
 # Package names drift between Debian releases (libasound2 -> libasound2t64,
 # libtiff5 -> libtiff6, ...). A single apt-get with one bad name installs

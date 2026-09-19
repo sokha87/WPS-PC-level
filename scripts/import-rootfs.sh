@@ -10,8 +10,9 @@
 set -euo pipefail
 
 DISTRO="${DISTRO:-debian}"
-ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/common.sh
+. "$HERE/scripts/common.sh"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
@@ -31,7 +32,7 @@ pkg update -y >/dev/null 2>&1 || true
 pkg install -y termux-x11-nightly pulseaudio >/dev/null
 case "$ARCHIVE" in *.zst) pkg install -y zstd >/dev/null ;; esac
 
-if [ -d "$ROOTFS" ]; then
+if ROOTFS="$(find_rootfs "$DISTRO")"; then
   printf 'A "%s" container already exists and will be replaced. Continue? [y/N] ' "$DISTRO"
   read -r a; [ "${a:-n}" = y ] || exit 1
   proot-distro remove "$DISTRO" || rm -rf "$ROOTFS"
@@ -42,6 +43,7 @@ if proot-distro restore --help >/dev/null 2>&1; then
   proot-distro restore "$ARCHIVE"
 else
   log "Restoring with tar"
+  ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
   mkdir -p "$ROOTFS"
   case "$ARCHIVE" in
     *.zst) zstd -dc "$ARCHIVE" | tar -C "$ROOTFS" -xf - ;;
@@ -50,6 +52,7 @@ else
   esac
 fi
 
+ROOTFS="$(find_rootfs "$DISTRO")" || die "Restore finished but no rootfs was found."
 [ -x "$ROOTFS/usr/local/bin/start-wps-session" ] || \
   die "That archive has no WPS session in it — was it made by export-rootfs.sh?"
 

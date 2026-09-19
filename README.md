@@ -259,6 +259,16 @@ by default; add more with `apt-get install fonts-…` inside the container.
 
 **No sound** — PulseAudio didn't start. `pcwps stop`, then `pcwps`.
 
+**`container 'debian' already exists`** — fixed; update with `git pull`. The
+installer used to guess where proot-distro keeps its rootfs, and guessed wrong
+on newer versions, so it tried to create a container that was already there.
+It now asks proot-distro instead and is safe to re-run over a half-finished
+install.
+
+**Re-running the installer** is fine and expected — the container is reused, and
+the WPS package is cached in `~/.cache/pc-wps/` so it is not downloaded twice.
+Delete that directory to reclaim ~350 MB once everything works.
+
 **The home-screen icon does nothing** — Termux:Widget only reads `~/.shortcuts`
 when that directory is not group- or world-readable. The installer sets `700`,
 but if you have recreated it by hand, `chmod 700 ~/.shortcuts` and re-add the
@@ -309,6 +319,7 @@ and would rather not be given a desktop.
 
 ```
 install.sh                         run this in Termux — orchestrates everything
+scripts/common.sh                  shared helpers (locating the container)
 scripts/debian-setup.sh            runs inside the container: XFCE, fonts, WPS
 scripts/start-wps-session          runs inside the container: starts the session
 scripts/pcwps.in                   template for the `pcwps` launcher
