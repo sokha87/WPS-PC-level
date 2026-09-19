@@ -98,25 +98,53 @@ resolve_deb() {
   if [ -n "${WPS_DEB_URL:-}" ]; then
     urls=("$WPS_DEB_URL")
   else
-    # WPS rotates these paths and version numbers without notice. If every
-    # candidate 404s, download the arm64 .deb yourself and re-run with
-    # WPS_DEB_FILE=/path/to/wps-office_*_arm64.deb
+    # First choice is the Pi-Apps mirror on GitHub Releases: same package, but
+    # served from a host that is neither geo-restricted nor hotlink-protected.
+    # WPS's own CDN answers 403 to most of the world and rotates its paths
+    # without notice, so it is a fallback, not the primary.
     urls=(
+      "https://github.com/Pi-Apps-Coders/files/releases/download/large-files/wps-office_11.1.0.11720_arm64.deb"
+      "https://wdl1.cache.wps.cn/wps/download/ep/Linux2019/11720/wps-office_11.1.0.11720_arm64.deb"
       "https://wps-linux-personal.wpscdn.cn/wps/download/ep/Linux2019/11723/wps-office_11.1.0.11723_arm64.deb"
-      "https://wps-linux-personal.wpscdn.cn/wps/download/ep/Linux2019/11719/wps-office_11.1.0.11719_arm64.deb"
       "https://wps-linux-personal.wpscdn.cn/wps/download/ep/Linux2019/11711/wps-office_11.1.0.11711_arm64.deb"
     )
   fi
 
-  local u
-  for u in "${urls[@]}"; do
-    log "Trying $u"
-    if curl -fL --retry 3 --retry-delay 2 -C - -o "$DEB_DIR/wps-office_arm64.deb.part" "$u"; then
+  # A bare curl gets 403 from WPS's CDN; it wants to look like a browser that
+  # arrived from their download page. Harmless for the GitHub mirror.
+  local UA='Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36'
+
+  try_url() {
+    log "Trying $1"
+    if curl -fL --retry 3 --retry-delay 2 -C - \
+            -A "$UA" -e 'https://linux.wps.cn/' \
+            -o "$DEB_DIR/wps-office_arm64.deb.part" "$1"; then
       mv -f "$DEB_DIR/wps-office_arm64.deb.part" "$DEB_DIR/wps-office_arm64.deb"
       return 0
     fi
-    warn "Failed: $u"
+    warn "Failed: $1"
+    return 1
+  }
+
+  local u
+  for u in "${urls[@]}"; do
+    try_url "$u" && return 0
   done
+
+  # Last automated resort: ask WPS's own download page what the current arm64
+  # link is, rather than guessing at version numbers.
+  if [ -z "${WPS_DEB_URL:-}" ]; then
+    log "Asking linux.wps.cn for a current arm64 link"
+    local page found
+    for page in "https://linux.wps.cn/" "https://www.wps.cn/product/wpslinux"; do
+      while IFS= read -r found; do
+        [ -n "$found" ] || continue
+        try_url "$found" && return 0
+      done < <(curl -fsSL --max-time 30 -A "$UA" "$page" 2>/dev/null \
+               | grep -Eo 'https?://[A-Za-z0-9._~/-]+arm64\.deb' | sort -u | head -5)
+    done
+  fi
+
   return 1
 }
 
@@ -126,16 +154,25 @@ if ! resolve_deb; then
 
 [x] Could not download WPS Office for Linux (arm64).
 
-    WPS changes these download paths often, and some of their CDN hosts are
-    geo-restricted. Do this instead:
+    Every mirror refused. Download the package by hand and point the installer
+    at it — any of these sources carries the same arm64 build:
 
-      1. On any machine, get the arm64 .deb from https://www.wps.cn/product/wpslinux
-         (the "ARM64 / 麒麟·飞腾" build — file name looks like
-          wps-office_11.1.0.XXXXX_arm64.deb, roughly 300-400 MB).
-      2. Put it on your phone, e.g. /sdcard/Download/
-      3. Re-run:
+      * https://github.com/Pi-Apps-Coders/files/releases/tag/large-files
+        (wps-office_11.1.0.11720_arm64.deb — the Pi-Apps mirror, usually the
+         one that works outside China)
+      * https://linux.wps.cn/  — the official page, "ARM64 / 麒麟·飞腾" build
+      * https://github.com/koesherbacon/WPS-Office — community .deb mirror
+
+    Then:
+
+      1. Put the file on your phone, e.g. /sdcard/Download/
+      2. Re-run:
            termux-setup-storage      # once, to grant storage access
-           WPS_DEB_FILE=/sdcard/Download/wps-office_11.1.0.XXXXX_arm64.deb bash install.sh
+           WPS_DEB_FILE=/sdcard/Download/wps-office_11.1.0.11720_arm64.deb bash install.sh
+
+    Or pass a link directly:
+
+           WPS_DEB_URL="https://..." bash install.sh
 
 MSG
   exit 1

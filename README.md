@@ -207,22 +207,33 @@ bash scripts/import-rootfs.sh <that-file>  # on the other device
 That archive is your own equivalent of Xiaomi's shipped guest image — WPS and the
 Linux it needs, fused into one artifact.
 
-## If the WPS download fails
+## Where the WPS package comes from
 
-`install.sh` probes a few known WPS CDN paths. WPS rotates those URLs and version
-numbers without notice, and some of their hosts are geo-restricted — **if all
-candidates 404 or time out, that is expected, not a bug in the script.** Fetch the
-package yourself and point the installer at it:
+`install.sh` downloads `wps-office_11.1.0.11720_arm64.deb` from the **Pi-Apps
+mirror on GitHub Releases**, not from WPS directly.
 
-1. Get the **arm64** build from <https://www.wps.cn/product/wpslinux> — the
-   ARM64 / 麒麟·飞腾 download, named `wps-office_11.1.0.XXXXX_arm64.deb`.
-2. Put it in `/sdcard/Download/` on the phone.
-3. ```bash
-   termux-setup-storage
-   WPS_DEB_FILE=/sdcard/Download/wps-office_11.1.0.XXXXX_arm64.deb bash install.sh
-   ```
+That is deliberate. WPS's own CDN (`wps-linux-personal.wpscdn.cn`) answers **403**
+to most of the world — hotlink protection and geo-restriction — and rotates its
+paths and version numbers without notice. GitHub Releases does neither. The
+installer still falls back to WPS's hosts with browser-like headers, and as a last
+resort scrapes `linux.wps.cn` for a current link, but the mirror is what normally
+answers.
 
-You can also pass a direct link with `WPS_DEB_URL=…`.
+If everything refuses, fetch the package by hand from any of:
+
+* <https://github.com/Pi-Apps-Coders/files/releases/tag/large-files> —
+  `wps-office_11.1.0.11720_arm64.deb`, the mirror above
+* <https://linux.wps.cn/> — the official page, ARM64 / 麒麟·飞腾 build
+* <https://github.com/koesherbacon/WPS-Office> — community .deb mirror
+
+then:
+
+```bash
+termux-setup-storage
+WPS_DEB_FILE=/sdcard/Download/wps-office_11.1.0.11720_arm64.deb bash install.sh
+```
+
+or pass a link directly with `WPS_DEB_URL=…`.
 
 ## Troubleshooting
 

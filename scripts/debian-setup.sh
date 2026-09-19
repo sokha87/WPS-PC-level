@@ -107,11 +107,15 @@ fi
 # current Debian no longer ships under those exact names. Install the modern
 # equivalents and provide the old sonames as symlinks, then force the install.
 log "Installing WPS runtime dependencies"
+# libwebp and libtiff are what WPS's PDF export actually needs -- without them
+# it installs and runs but fails on export. x11-utils and wmctrl are what its
+# window handling expects to find.
 apt_try libcups2 libcups2t64 libxss1 libnss3 libasound2 libasound2t64 \
         libxcomposite1 libxcursor1 libxdamage1 libxi6 libxrandr2 libxtst6 \
         libgtk-3-0 libgtk-3-0t64 libatk1.0-0 libatk1.0-0t64 libcairo2 \
         libpango-1.0-0 libfontconfig1 libfreetype6 libpng16-16 \
-        libjpeg62-turbo libxml2 libtiff6 libtiff5
+        libjpeg62-turbo libxml2 libtiff6 libtiff5 libwebp7 libwebp6 \
+        x11-utils wmctrl
 
 LIBDIR=/usr/lib/aarch64-linux-gnu
 link_compat() {  # link_compat <wanted soname> <glob of what we actually have>
@@ -124,6 +128,7 @@ link_compat() {  # link_compat <wanted soname> <glob of what we actually have>
   fi
 }
 link_compat libtiff.so.5     'libtiff.so.*'
+link_compat libwebp.so.6     'libwebp.so.*'
 link_compat libssl.so.1.1    'libssl.so.*'
 link_compat libcrypto.so.1.1 'libcrypto.so.*'
 ldconfig
