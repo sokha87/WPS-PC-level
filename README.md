@@ -237,8 +237,14 @@ or pass a link directly with `WPS_DEB_URL=…`.
 
 ## Troubleshooting
 
-**"The Termux:X11 companion app is not installed"** — step 2 above. The
-`termux-x11-nightly` *package* is only the server half; the APK is the window.
+**"The Termux:X11 companion app is not installed"** — fixed; update with
+`git pull`. `pcwps` used to check with `pm list packages`, but Android's
+package-visibility rules routinely hide other apps from a command run inside
+Termux, so it reported the app missing when it was installed and refused to
+start. Nothing is checked up front now.
+
+If you genuinely don't have it, that is step 2 above: the `termux-x11-nightly`
+*package* is only the server half, the APK is the window.
 
 **Black window in Termux:X11** — the desktop is still starting (first launch can
 take 30s). If it stays black, `pcwps stop`, then `pcwps` again.

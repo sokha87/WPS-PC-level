@@ -47,19 +47,15 @@ fi
 command -v pcwps >/dev/null || die "pcwps is not installed. Run install.sh first."
 ROOTFS="$(find_rootfs "$DISTRO")" || die "No '$DISTRO' container found. Run install.sh first."
 
+# Android package-visibility rules often hide other apps from `pm list
+# packages` when it is run from Termux, so a negative result here means
+# "could not tell", not "not installed". Warn and carry on: the shortcuts are
+# harmless if the app turns out to be missing.
 if ! pm list packages 2>/dev/null | grep -q 'com\.termux\.widget'; then
-  cat >&2 <<'MSG'
-[x] Termux:Widget is not installed.
-
-    It is a separate companion app — the piece that actually puts the icons on
-    your home screen. Get the APK from:
-
-        https://f-droid.org/packages/com.termux.widget/
-        https://github.com/termux/termux-widget/releases
-
-    Install it, then re-run this script.
-MSG
-  exit 1
+  warn "Could not confirm Termux:Widget is installed (Android may be hiding it)."
+  warn "If the icons never appear, install it from:"
+  warn "  https://f-droid.org/packages/com.termux.widget/"
+  warn "  https://github.com/termux/termux-widget/releases"
 fi
 
 # Termux:Widget refuses to read ~/.shortcuts if it is group- or world-readable.

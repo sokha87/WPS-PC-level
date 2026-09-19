@@ -50,20 +50,14 @@ esac
 
 command -v pcwps >/dev/null || die "pcwps is not installed. Run install.sh first."
 
+# As in install-shortcuts.sh: `pm list packages` from Termux is subject to
+# Android's package-visibility filtering, so a miss here is inconclusive.
 if ! pm list packages 2>/dev/null | grep -q 'com\.termux\.boot'; then
-  cat >&2 <<'MSG'
-[x] Termux:Boot is not installed.
-
-    It is a separate companion app — the piece that actually runs anything at
-    boot. Get the APK from:
-
-        https://f-droid.org/packages/com.termux.boot/
-        https://github.com/termux/termux-boot/releases
-
-    Install it, OPEN IT ONCE (it does nothing visible, but it will not run
-    your scripts until it has been launched at least once), then re-run this.
-MSG
-  exit 1
+  warn "Could not confirm Termux:Boot is installed (Android may be hiding it)."
+  warn "If nothing starts at boot, install it and OPEN IT ONCE -- it will not"
+  warn "run your scripts until it has been launched at least one time:"
+  warn "  https://f-droid.org/packages/com.termux.boot/"
+  warn "  https://github.com/termux/termux-boot/releases"
 fi
 
 # The boot hook itself. Termux:Boot runs each executable in ~/.termux/boot/ in

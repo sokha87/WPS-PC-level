@@ -63,18 +63,24 @@ case "$MODE" in
   *) echo "usage: pcwps [writer|et|wpp|pdf|desktop|show|stop] [--no-window] [--quiet]" >&2; exit 2 ;;
 esac
 
-if ! pm list packages 2>/dev/null | grep -q 'com\.termux\.x11'; then
-  warn "The Termux:X11 companion app is not installed."
-  warn "Get the arm64 APK from https://github.com/termux/termux-x11/releases,"
-  warn "install it, then run pcwps again."
-  exit 1
-fi
-
 XSOCK="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/.X11-unix/X0"
 
+# Android's package-visibility rules mean `pm list packages` run from Termux
+# often cannot see Termux:X11 even when it is installed, so presence is never
+# tested up front -- the window is simply opened, and only a real failure to
+# start the activity is reported. A false negative here used to abort the
+# whole launch.
 show_window() {
   [ "$NO_WINDOW" = 1 ] && return 0
-  am start -n com.termux.x11/.MainActivity >/dev/null 2>&1
+  local out
+  out="$(am start -n com.termux.x11/.MainActivity 2>&1)" || true
+  if printf '%s' "$out" | grep -qiE 'error|does not exist|not found'; then
+    warn "Could not open the Termux:X11 window automatically."
+    warn "Open the Termux:X11 app yourself — WPS is running and will appear there."
+    warn "Not installed? https://github.com/termux/termux-x11/releases"
+    return 1
+  fi
+  return 0
 }
 
 # Run an app inside the container. start-wps-session only starts a window
@@ -89,7 +95,7 @@ run_app() {
 # the whole session down and rebuild it.
 if [ -e "$XSOCK" ] && pgrep -f "termux.x11" >/dev/null 2>&1; then
   log "Session already running"
-  show_window
+  show_window || true
   case "$MODE" in
     show|default|desktop) exit 0 ;;
     *) log "Opening $MODE in the running session"; run_app "$MODE"; exit 0 ;;
@@ -126,7 +132,7 @@ if [ "$NO_WINDOW" = 1 ]; then
   log "Leaving the Termux:X11 window closed (--no-window)"
 else
   log "Opening the Termux:X11 window"
-  show_window
+  show_window || true
   sleep 1
 fi
 
