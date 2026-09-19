@@ -101,16 +101,50 @@ pcwps desktop   # the XFCE desktop (desktop builds only)
 pcwps stop      # shut the session down
 
 pcwps --no-window writer   # start WPS but leave the window closed
+pcwps show                 # bring an already-running session to the front
 ```
 
 Run `pcwps`, then switch to the **Termux:X11** app — WPS is drawing in there.
 Leave Termux running in the background (its notification must stay alive).
+For a home-screen icon instead of a typed command, see
+[Putting an icon on the home screen](#putting-an-icon-on-the-home-screen).
 
 Your phone's storage is reachable from inside the container at `/mnt/sdcard` once
 you have run `termux-setup-storage` in Termux, so you can open documents from
 Downloads and save back to them.
 
 ---
+
+## Putting an icon on the home screen
+
+```bash
+bash scripts/install-shortcuts.sh
+bash scripts/install-shortcuts.sh --uninstall
+```
+
+This needs **[Termux:Widget](https://f-droid.org/packages/com.termux.widget/)** —
+another companion app, the one that turns scripts in `~/.shortcuts/` into
+home-screen icons. The installer checks for it and stops with the download links
+if it is missing.
+
+It writes one shortcut per WPS app (Writer, Sheets, Slides, PDF — skipping any
+your build doesn't ship) and **copies the real icons out of the WPS installation
+inside the container**, so they are the actual application icons, not
+approximations drawn here.
+
+Then place them yourself — Android does not let an app put icons on the home
+screen on its own:
+
+> Long-press the home screen → **Widgets** → **Termux:Widget**
+> · *Termux shortcut* — one icon for one app, add one per app
+> · *Termux widget* — a small tile listing all of them
+
+Tapping an icon starts WPS and brings up the window. Tapping it again while WPS
+is running **surfaces the existing session** rather than restarting it, and
+tapping a different app's icon opens that app alongside the running one instead
+of tearing the session down. This matters if you also use the boot hook below:
+the warm start leaves WPS running with no window, and a tap is then just an
+instant window.
 
 ## Starting WPS on boot
 
@@ -214,6 +248,16 @@ by default; add more with `apt-get install fonts-…` inside the container.
 
 **No sound** — PulseAudio didn't start. `pcwps stop`, then `pcwps`.
 
+**The home-screen icon does nothing** — Termux:Widget only reads `~/.shortcuts`
+when that directory is not group- or world-readable. The installer sets `700`,
+but if you have recreated it by hand, `chmod 700 ~/.shortcuts` and re-add the
+widget.
+
+**The icons are generic Termux icons** — no matching PNG was found in the
+container. `find $PREFIX/var/lib/proot-distro/installed-rootfs/debian/usr/share/icons -name '*wps*'`
+shows what your WPS build actually ships; drop a 192×192 PNG at
+`~/.shortcuts/icons/<shortcut name>.png` to set one yourself.
+
 **Nothing starts on boot** — check `~/.cache/pc-wps/boot.log` first; if it is
 empty, Termux:Boot never ran the hook. Either the app has never been opened
 (it must be launched once after install), or Android killed Termux before the
@@ -257,6 +301,7 @@ install.sh                         run this in Termux — orchestrates everythin
 scripts/debian-setup.sh            runs inside the container: XFCE, fonts, WPS
 scripts/start-wps-session          runs inside the container: starts the session
 scripts/pcwps.in                   template for the `pcwps` launcher
+scripts/install-shortcuts.sh       install/remove the home-screen shortcuts
 scripts/install-autostart.sh       install/remove the Termux:Boot hook
 scripts/export-rootfs.sh           package the built environment into one file
 scripts/import-rootfs.sh           restore that file on another device

@@ -9,7 +9,12 @@
 #   pcwps wpp        WPS Presentation
 #   pcwps pdf        WPS PDF
 #   pcwps desktop    full XFCE desktop (only on a PROFILE=desktop container)
+#   pcwps show       bring an already-running session to the front
 #   pcwps stop       shut everything down
+#
+# Tapping a launcher icon while a session is already up does not restart it:
+# the window is brought forward, and a different app is opened alongside the
+# one already running rather than replacing it.
 #
 # Flags:
 #   --no-window      start everything but leave the Termux:X11 window closed.
@@ -54,14 +59,45 @@ stop_all() {
 if [ "$MODE" = stop ]; then stop_all; exit 0; fi
 
 case "$MODE" in
-  default|desktop|writer|wps|et|wpp|pdf) ;;
-  *) echo "usage: pcwps [writer|et|wpp|pdf|desktop|stop] [--no-window] [--quiet]" >&2; exit 2 ;;
+  default|desktop|writer|wps|et|wpp|pdf|show) ;;
+  *) echo "usage: pcwps [writer|et|wpp|pdf|desktop|show|stop] [--no-window] [--quiet]" >&2; exit 2 ;;
 esac
 
 if ! pm list packages 2>/dev/null | grep -q 'com\.termux\.x11'; then
   warn "The Termux:X11 companion app is not installed."
   warn "Get the arm64 APK from https://github.com/termux/termux-x11/releases,"
   warn "install it, then run pcwps again."
+  exit 1
+fi
+
+XSOCK="${TMPDIR:-/data/data/com.termux/files/usr/tmp}/.X11-unix/X0"
+
+show_window() {
+  [ "$NO_WINDOW" = 1 ] && return 0
+  am start -n com.termux.x11/.MainActivity >/dev/null 2>&1
+}
+
+# Run an app inside the container. start-wps-session only starts a window
+# manager if one is not already running, so this is safe to call against a
+# session that is already up.
+run_app() {
+  proot-distro login "$DISTRO" --shared-tmp -- \
+    /bin/bash -lc "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$1'"
+}
+
+# Already running? Then a tap on a launcher icon should surface it, not tear
+# the whole session down and rebuild it.
+if [ -e "$XSOCK" ] && pgrep -f "termux.x11" >/dev/null 2>&1; then
+  log "Session already running"
+  show_window
+  case "$MODE" in
+    show|default|desktop) exit 0 ;;
+    *) log "Opening $MODE in the running session"; run_app "$MODE"; exit 0 ;;
+  esac
+fi
+
+if [ "$MODE" = show ]; then
+  warn "No session is running. Start one with: pcwps [writer|et|wpp|pdf]"
   exit 1
 fi
 
@@ -81,7 +117,7 @@ X11_PID=$!
 
 # Wait for the server to actually listen rather than guessing with a fixed sleep.
 for _ in $(seq 1 20); do
-  [ -e "${TMPDIR:-/data/data/com.termux/files/usr/tmp}/.X11-unix/X0" ] && break
+  [ -e "$XSOCK" ] && break
   kill -0 "$X11_PID" 2>/dev/null || { warn "termux-x11 exited immediately"; exit 1; }
   sleep 0.5
 done
@@ -90,13 +126,12 @@ if [ "$NO_WINDOW" = 1 ]; then
   log "Leaving the Termux:X11 window closed (--no-window)"
 else
   log "Opening the Termux:X11 window"
-  am start -n com.termux.x11/.MainActivity >/dev/null 2>&1
+  show_window
   sleep 1
 fi
 
 log "Launching WPS ($MODE)"
-proot-distro login "$DISTRO" --shared-tmp -- \
-  /bin/bash -lc "DISPLAY=:0 PULSE_SERVER=tcp:127.0.0.1 /usr/local/bin/start-wps-session '$MODE'"
+run_app "$MODE"
 
 log "Session ended"
 stop_all

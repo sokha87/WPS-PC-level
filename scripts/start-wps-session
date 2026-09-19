@@ -54,5 +54,12 @@ case "$WM" in
   *)                       WM_CMD="$WM" ;;
 esac
 
+# When a session is already up -- a launcher icon tapped while WPS is running,
+# say -- reuse its window manager instead of starting a second one, which would
+# fight the first for every window.
+if pgrep -x "$WM" >/dev/null 2>&1; then
+  exec /usr/bin/"$BIN"
+fi
+
 exec dbus-launch --exit-with-session bash -c \
   "$WM_CMD >/dev/null 2>&1 & exec /usr/bin/$BIN"
