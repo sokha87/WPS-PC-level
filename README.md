@@ -261,10 +261,14 @@ If you genuinely don't have it, that is step 2 above: the `termux-x11-nightly`
 *package* is only the server half, the APK is the window.
 
 **`error: expected absolute path: "--shm-helper"`** — fixed; update with
-`git pull && bash scripts/update-launcher.sh`. `pcwps` used `--shared-tmp` to
-give the container access to the X socket, and some proot-distro/proot version
-pairs mishandle that flag. It now binds the socket directory explicitly, the
-same way the installer does.
+`git pull && bash scripts/update-launcher.sh`. `pcwps` entered the container
+with `bash -lc`; the login shell sources `/etc/profile` inside the container,
+and on some proot builds that path makes proot fail with this message. It uses
+plain `bash -c` now, which is what the installer always used. Nothing needed
+the login shell — `start-wps-session` sets its own environment.
+
+`PCWPS_DEBUG=1 pcwps` prints the exact proot-distro command if you need to
+compare invocations again.
 
 **Black window in Termux:X11** — the desktop is still starting (first launch can
 take 30s). If it stays black, `pcwps stop`, then `pcwps` again.
