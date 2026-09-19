@@ -1,0 +1,41 @@
+#!/bin/bash
+#
+# start-wps-session — runs INSIDE the container, started by `pcwps`.
+#   start-wps-session desktop   -> full XFCE session, WPS autostarts
+#   start-wps-session writer|et|wpp|wps -> that app alone, on a bare WM
+#
+set -u
+
+MODE="${1:-desktop}"
+
+export DISPLAY="${DISPLAY:-:0}"
+export PULSE_SERVER="${PULSE_SERVER:-tcp:127.0.0.1}"
+export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/tmp/runtime-root}"
+export LIBGL_ALWAYS_SOFTWARE=1
+export GALLIUM_DRIVER=llvmpipe
+export QT_X11_NO_MITSHM=1
+export LANG="${LANG:-C.UTF-8}"
+mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
+
+case "$MODE" in
+  desktop)
+    exec dbus-launch --exit-with-session xfce4-session
+    ;;
+  writer|wps|et|wpp|pdf)
+    # WPS's binaries are named wps (Writer), et (Spreadsheets), wpp
+    # (Presentation) and wpspdf (PDF reader).
+    case "$MODE" in
+      writer) BIN=wps    ;;
+      pdf)    BIN=wpspdf ;;
+      *)      BIN="$MODE" ;;
+    esac
+    # xfsettingsd gives the app a working theme/font config without a full session;
+    # xfwm4 gives it a title bar so dialogs can be moved.
+    exec dbus-launch --exit-with-session bash -c \
+      "xfsettingsd --daemon 2>/dev/null; xfwm4 --daemon 2>/dev/null; exec /usr/bin/$BIN"
+    ;;
+  *)
+    echo "start-wps-session: unknown mode '$MODE'" >&2
+    exit 2
+    ;;
+esac
