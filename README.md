@@ -22,8 +22,39 @@ on any arm64 Android device. **No root required.**
 ## What you get
 
 Genuine desktop WPS Writer / Spreadsheets / Presentation / PDF — the Linux build,
-not the mobile app — in a resizable XFCE desktop, with keyboard, mouse and
-external-display support through Termux:X11.
+not the mobile app — with keyboard, mouse and external-display support through
+Termux:X11.
+
+By default you get **only that**. No desktop, no panel, no file manager, no
+terminal, no wallpaper — you tap the launcher and WPS is the window. This is the
+same shape as Xiaomi's own `mslgrootfs`: a Linux image whose entire purpose is to
+hold one application.
+
+### Two profiles
+
+| | `PROFILE=slim` (default) | `PROFILE=desktop` |
+|---|---|---|
+| Session | WPS alone, on a ~200 KB window manager | full XFCE desktop |
+| Also installed | nothing else | panel, file manager, terminal, settings |
+| Install size | **~1.5–1.8 GB** | ~3.5–4.5 GB |
+| Use when | you only ever want WPS | you want a general Linux desktop too |
+
+Roughly where the slim build's space goes: Debian base ~120 MB, X11 + GTK
+libraries ~350 MB, fonts ~50 MB (or ~380 MB with `FONTS=full`), and WPS itself
+~1 GB — WPS is the floor, and nothing in this repo can shrink it much.
+
+`install.sh` prints the measured sizes at the end of the build, so you will see
+the real numbers for your device rather than these estimates.
+
+### Build knobs
+
+```bash
+bash install.sh                  # slim: WPS only, Latin + Khmer fonts
+PROFILE=desktop bash install.sh  # full XFCE desktop as well
+FONTS=full bash install.sh       # add CJK fonts (Noto CJK alone is ~330 MB)
+TRIM=0 bash install.sh           # keep docs, man pages and system locales
+TRIM_MUI=en_US bash install.sh   # keep only the English WPS UI language pack
+```
 
 ## Requirements
 
@@ -31,7 +62,7 @@ external-display support through Termux:X11.
 |---|---|
 | CPU | arm64 (`aarch64`) — effectively every phone since ~2016 |
 | Android | 7.0+ |
-| Free storage | **~6 GB** (Debian ~1.5 GB, WPS ~1 GB, plus working room) |
+| Free storage | **~4 GB** for a slim build, ~6 GB for a desktop build |
 | RAM | 4 GB works; 6 GB+ is comfortable |
 | Root | **not needed** |
 
@@ -61,22 +92,36 @@ external-display support through Termux:X11.
 ## Use
 
 ```bash
-pcwps           # full XFCE desktop; WPS starts automatically
-pcwps writer    # just WPS Writer
-pcwps et        # just Spreadsheets
-pcwps wpp       # just Presentation
-pcwps pdf       # just the PDF reader
+pcwps           # WPS Writer (on a desktop build: the XFCE desktop)
+pcwps writer    # WPS Writer
+pcwps et        # Spreadsheets
+pcwps wpp       # Presentation
+pcwps pdf       # PDF reader
+pcwps desktop   # the XFCE desktop (desktop builds only)
 pcwps stop      # shut the session down
 ```
 
-Run `pcwps`, then switch to the **Termux:X11** app — the desktop is there. Leave
-Termux running in the background (its notification must stay alive).
+Run `pcwps`, then switch to the **Termux:X11** app — WPS is drawing in there.
+Leave Termux running in the background (its notification must stay alive).
 
 Your phone's storage is reachable from inside the container at `/mnt/sdcard` once
 you have run `termux-setup-storage` in Termux, so you can open documents from
 Downloads and save back to them.
 
 ---
+
+## Reusing the build on another device
+
+Once it works, package the whole environment into one file and restore it
+elsewhere in a couple of minutes instead of rebuilding:
+
+```bash
+bash scripts/export-rootfs.sh              # -> /sdcard/Download/wps-rootfs-<date>.tar.zst
+bash scripts/import-rootfs.sh <that-file>  # on the other device
+```
+
+That archive is your own equivalent of Xiaomi's shipped guest image — WPS and the
+Linux it needs, fused into one artifact.
 
 ## If the WPS download fails
 
@@ -124,6 +169,12 @@ by default; add more with `apt-get install fonts-…` inside the container.
 presentations. On a rooted device, a real container (chroot) is substantially
 faster.
 
+**Want it even smaller?** The remaining bulk is WPS itself. `TRIM_MUI=en_US`
+drops the UI language packs you don't use, which is worth a few hundred MB.
+Beyond that you would be deleting templates and clip-art out of
+`/opt/kingsoft/wps-office/office6/` by hand — possible, but you are trading
+robustness for a few hundred more MB, and an update puts it all back.
+
 **Reclaim the space:**
 
 ```bash
@@ -132,12 +183,16 @@ proot-distro remove debian
 rm -f $PREFIX/bin/pcwps ~/.cache/pc-wps/*.deb
 ```
 
-## Want it without the command line?
+## How this differs from tiny_computer
 
-[**tiny_computer**](https://github.com/Cateners/tiny_computer) is a packaged
-Android app that does essentially this — click-to-run Debian desktop, no root, no
-terminal. If you would rather tap an APK than run an installer, use that instead;
-this repo exists for when you want the pieces visible and editable.
+[tiny_computer](https://github.com/Cateners/tiny_computer) gives you a full
+general-purpose Debian desktop — convenient, but you are carrying a whole desktop
+environment you never asked for, and WPS is one icon inside it.
+
+The slim profile here inverts that: the Linux is an implementation detail with
+nothing in it but WPS's dependencies, and WPS is the application you launch. Use
+tiny_computer if you want a Linux desktop on your phone. Use this if you want WPS
+and would rather not be given a desktop.
 
 ## Layout
 
@@ -146,6 +201,8 @@ install.sh                         run this in Termux — orchestrates everythin
 scripts/debian-setup.sh            runs inside the container: XFCE, fonts, WPS
 scripts/start-wps-session          runs inside the container: starts the session
 scripts/pcwps.in                   template for the `pcwps` launcher
+scripts/export-rootfs.sh           package the built environment into one file
+scripts/import-rootfs.sh           restore that file on another device
 docs/why-the-xiaomi-apk-fails.md   why com.xiaomi.wpslauncher can't work here
 ```
 

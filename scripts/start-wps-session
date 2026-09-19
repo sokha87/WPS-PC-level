@@ -1,12 +1,17 @@
 #!/bin/bash
 #
 # start-wps-session — runs INSIDE the container, started by `pcwps`.
-#   start-wps-session desktop   -> full XFCE session, WPS autostarts
-#   start-wps-session writer|et|wpp|wps -> that app alone, on a bare WM
+#
+#   start-wps-session            the profile's default (slim -> WPS alone)
+#   start-wps-session writer|et|wpp|pdf   that app alone, on a bare window manager
+#   start-wps-session desktop    full XFCE session (desktop profile only)
 #
 set -u
 
-MODE="${1:-desktop}"
+MODE="${1:-default}"
+
+PROFILE="$(cat /etc/pc-wps-profile 2>/dev/null || echo slim)"
+WM="$(cat /etc/pc-wps-wm 2>/dev/null || echo matchbox-window-manager)"
 
 export DISPLAY="${DISPLAY:-:0}"
 export PULSE_SERVER="${PULSE_SERVER:-tcp:127.0.0.1}"
@@ -17,25 +22,37 @@ export QT_X11_NO_MITSHM=1
 export LANG="${LANG:-C.UTF-8}"
 mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 
+if [ "$MODE" = default ]; then
+  [ "$PROFILE" = desktop ] && MODE=desktop || MODE=writer
+fi
+
+# WPS's binaries are named wps (Writer), et (Spreadsheets), wpp (Presentation)
+# and wpspdf (PDF reader).
 case "$MODE" in
-  desktop)
-    exec dbus-launch --exit-with-session xfce4-session
-    ;;
-  writer|wps|et|wpp|pdf)
-    # WPS's binaries are named wps (Writer), et (Spreadsheets), wpp
-    # (Presentation) and wpspdf (PDF reader).
-    case "$MODE" in
-      writer) BIN=wps    ;;
-      pdf)    BIN=wpspdf ;;
-      *)      BIN="$MODE" ;;
-    esac
-    # xfsettingsd gives the app a working theme/font config without a full session;
-    # xfwm4 gives it a title bar so dialogs can be moved.
-    exec dbus-launch --exit-with-session bash -c \
-      "xfsettingsd --daemon 2>/dev/null; xfwm4 --daemon 2>/dev/null; exec /usr/bin/$BIN"
-    ;;
-  *)
-    echo "start-wps-session: unknown mode '$MODE'" >&2
-    exit 2
-    ;;
+  desktop) ;;
+  writer)  BIN=wps     ;;
+  pdf)     BIN=wpspdf  ;;
+  wps|et|wpp) BIN="$MODE" ;;
+  *) echo "start-wps-session: unknown mode '$MODE'" >&2; exit 2 ;;
 esac
+
+if [ "$MODE" = desktop ]; then
+  if [ "$PROFILE" != desktop ]; then
+    echo "start-wps-session: this container was built with PROFILE=slim, so there" >&2
+    echo "is no desktop to start. Use: pcwps writer|et|wpp|pdf" >&2
+    exit 2
+  fi
+  exec dbus-launch --exit-with-session xfce4-session
+fi
+
+# Single-app session: the window manager exists only to give WPS a title bar so
+# its dialogs can be moved and resized. It draws no desktop, panel or icons.
+#
+# matchbox takes -use_titlebar; the fallbacks take no arguments.
+case "$WM" in
+  matchbox-window-manager) WM_CMD="matchbox-window-manager -use_titlebar yes" ;;
+  *)                       WM_CMD="$WM" ;;
+esac
+
+exec dbus-launch --exit-with-session bash -c \
+  "$WM_CMD >/dev/null 2>&1 & exec /usr/bin/$BIN"

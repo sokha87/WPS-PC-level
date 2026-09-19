@@ -8,6 +8,11 @@
 #   bash install.sh
 #
 # Environment overrides:
+#   PROFILE=slim|desktop   slim (default) builds a WPS-only environment with no
+#                          desktop; desktop builds a full XFCE session
+#   FONTS=minimal|full     minimal (default) is Latin+Khmer; full adds CJK
+#   TRIM=1|0               strip docs, man pages and system locales (default 1)
+#   TRIM_MUI=en_US         comma-separated WPS UI languages to keep
 #   DISTRO=debian          proot-distro alias to use
 #   WPS_DEB_URL=<url>      exact .deb to install instead of the probe list
 #   WPS_DEB_FILE=<path>    a .deb you downloaded yourself (skips all downloading)
@@ -16,6 +21,10 @@
 set -euo pipefail
 
 DISTRO="${DISTRO:-debian}"
+PROFILE="${PROFILE:-slim}"     # slim = WPS only; desktop = full XFCE
+FONTS="${FONTS:-minimal}"      # minimal = Latin+Khmer; full = adds CJK (+330 MB)
+TRIM="${TRIM:-1}"              # drop docs/man/locales after install
+TRIM_MUI="${TRIM_MUI:-}"       # WPS UI languages to keep, e.g. "en_US"
 ROOTFS="$PREFIX/var/lib/proot-distro/installed-rootfs/$DISTRO"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
@@ -27,14 +36,18 @@ die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [ -d /data/data/com.termux/files/usr ] || die "This must be run inside Termux."
 
+case "$PROFILE" in slim|desktop) ;; *) die "PROFILE must be 'slim' or 'desktop'" ;; esac
+case "$FONTS"   in minimal|full) ;; *) die "FONTS must be 'minimal' or 'full'"   ;; esac
+
 case "$(uname -m)" in
   aarch64|arm64) ;;
   *) die "WPS Office for Linux is only published for arm64. This device reports $(uname -m)." ;;
 esac
 
+if [ "$PROFILE" = slim ]; then need_mb=4000; else need_mb=6000; fi
 avail_kb="$(df -Pk "$HOME" | awk 'NR==2 {print $4}')"
-if [ "${avail_kb:-0}" -lt 6291456 ]; then
-  warn "Only $((avail_kb / 1024)) MB free. The Debian container plus WPS needs ~6 GB."
+if [ "${avail_kb:-0}" -lt $(( need_mb * 1024 )) ]; then
+  warn "Only $((avail_kb / 1024)) MB free. A '$PROFILE' build needs about ${need_mb} MB."
   warn "Free some space, or this will fail partway through."
   printf 'Continue anyway? [y/N] '; read -r a; [ "${a:-n}" = y ] || exit 1
 fi
@@ -138,8 +151,10 @@ install -m 0755 "$HERE/scripts/debian-setup.sh" "$ROOTFS/root/pc-wps/debian-setu
 install -m 0755 "$HERE/scripts/start-wps-session" "$ROOTFS/root/pc-wps/start-wps-session"
 cp -f "$DEB_DIR/wps-office_arm64.deb" "$ROOTFS/root/pc-wps/wps-office_arm64.deb"
 
-log "Running in-container setup (installs XFCE, fonts and WPS — takes a while)"
-proot-distro login "$DISTRO" -- /bin/bash /root/pc-wps/debian-setup.sh
+log "Running in-container setup (PROFILE=$PROFILE, FONTS=$FONTS — takes a while)"
+proot-distro login "$DISTRO" -- /bin/bash -c \
+  "PROFILE='$PROFILE' FONTS='$FONTS' TRIM='$TRIM' TRIM_MUI='$TRIM_MUI' \
+   /bin/bash /root/pc-wps/debian-setup.sh"
 
 # free the staged copy; the .deb is installed now
 rm -f "$ROOTFS/root/pc-wps/wps-office_arm64.deb"
@@ -153,11 +168,12 @@ chmod 0755 "$PREFIX/bin/pcwps"
 printf '%b' "
 \033[1;32mDone.\033[0m
 
-  Start it with:    \033[1mpcwps\033[0m          (full XFCE desktop, WPS auto-starts)
-                    \033[1mpcwps writer\033[0m   (WPS Writer only, no desktop)
+  Start it with:    \033[1mpcwps\033[0m          (WPS Writer)
                     \033[1mpcwps et\033[0m       (Spreadsheets)
                     \033[1mpcwps wpp\033[0m      (Presentation)
+                    \033[1mpcwps pdf\033[0m      (PDF reader)
   Stop it with:     \033[1mpcwps stop\033[0m
+  Package it up:    \033[1mbash scripts/export-rootfs.sh\033[0m
 
 "
 
