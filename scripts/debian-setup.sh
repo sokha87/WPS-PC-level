@@ -56,7 +56,16 @@ apt_first() {
   return 1
 }
 
-size_now() { du -sm / --exclude=/proc --exclude=/sys --exclude=/dev 2>/dev/null | cut -f1; }
+# Reporting only -- it must never be able to fail the build. du walking / under
+# proot hits unreadable paths and the bind-mounted package, and returns non-zero
+# for both, which under `set -e` with pipefail is fatal. So: measure only the
+# directories that actually hold the install, and swallow everything.
+size_now() {
+  local total
+  total="$( { du -sm /usr /opt /var /etc 2>/dev/null || true; } \
+            | awk '{ s += $1 } END { printf "%d", s + 0 }' )" || total=0
+  printf '%s' "${total:-0}"
+}
 
 log "Refreshing apt"
 apt-get update -y
@@ -134,7 +143,7 @@ link_compat libssl.so.1.1    'libssl.so.*'
 link_compat libcrypto.so.1.1 'libcrypto.so.*'
 ldconfig
 
-SIZE_PRE_WPS="$(size_now)"
+SIZE_PRE_WPS="$(size_now)" || SIZE_PRE_WPS=0
 
 log "Installing WPS Office (unpacks around 1 GB, be patient)"
 if ! apt-get install -y "$DEB"; then
@@ -197,8 +206,10 @@ if [ -n "$TRIM_MUI" ] && [ -d "$WPS_ROOT/office6/mui" ]; then
   done
 fi
 
-SIZE_END="$(size_now)"
+SIZE_END="$(size_now)" || SIZE_END=0
 
 log "Container setup complete"
-printf '     base+deps: %s MB\n     WPS adds:  %s MB\n     total:     %s MB\n' \
-  "$SIZE_PRE_WPS" "$(( SIZE_END - SIZE_PRE_WPS ))" "$SIZE_END"
+if [ "$SIZE_END" -gt 0 ] 2>/dev/null; then
+  printf '     base+deps: %s MB\n     WPS adds:  %s MB\n     total:     %s MB\n' \
+    "$SIZE_PRE_WPS" "$(( SIZE_END - SIZE_PRE_WPS ))" "$SIZE_END"
+fi

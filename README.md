@@ -259,6 +259,11 @@ by default; add more with `apt-get install fonts-…` inside the container.
 
 **No sound** — PulseAudio didn't start. `pcwps stop`, then `pcwps`.
 
+**Setup stops silently after the `compat:` lines** — fixed; update with
+`git pull`. A size measurement ran `du` across the whole container filesystem,
+which returns non-zero under proot, and `set -euo pipefail` turned that into a
+silent exit just before WPS would have installed. Re-running resumes.
+
 **`container 'debian' already exists`** — fixed; update with `git pull`. The
 installer used to guess where proot-distro keeps its rootfs, and guessed wrong
 on newer versions, so it tried to create a container that was already there.

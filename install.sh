@@ -86,7 +86,7 @@ resolve_deb() {
   fi
 
   local existing
-  existing="$(find "$DEB_DIR" -maxdepth 1 -name '*.deb' -size +100M 2>/dev/null | head -n1)"
+  existing="$(find "$DEB_DIR" -maxdepth 1 -name '*.deb' -size +100M 2>/dev/null | head -n1 || true)"
   if [ -n "$existing" ]; then
     log "Reusing already-downloaded $(basename "$existing")"
     [ "$existing" = "$DEB_DIR/wps-office_arm64.deb" ] || mv -f "$existing" "$DEB_DIR/wps-office_arm64.deb"
@@ -189,7 +189,10 @@ proot-distro login "$DISTRO" \
   --bind "$DEB_DIR:/mnt/pc-wps-deb" \
   -- /bin/bash -c \
   "PROFILE='$PROFILE' FONTS='$FONTS' TRIM='$TRIM' TRIM_MUI='$TRIM_MUI' \
-   /bin/bash /mnt/pc-wps-scripts/debian-setup.sh"
+   /bin/bash /mnt/pc-wps-scripts/debian-setup.sh" \
+  || die "The in-container setup failed. The last lines above say where; the
+    container and the downloaded package are kept, so re-running this script
+    resumes rather than starting over."
 
 # ---------------------------------------------------------- install launcher
 
