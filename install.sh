@@ -173,6 +173,7 @@ printf '%b' "
                     \033[1mpcwps wpp\033[0m      (Presentation)
                     \033[1mpcwps pdf\033[0m      (PDF reader)
   Stop it with:     \033[1mpcwps stop\033[0m
+  Start on boot:    \033[1mbash scripts/install-autostart.sh\033[0m
   Package it up:    \033[1mbash scripts/export-rootfs.sh\033[0m
 
 "

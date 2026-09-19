@@ -99,6 +99,8 @@ pcwps wpp       # Presentation
 pcwps pdf       # PDF reader
 pcwps desktop   # the XFCE desktop (desktop builds only)
 pcwps stop      # shut the session down
+
+pcwps --no-window writer   # start WPS but leave the window closed
 ```
 
 Run `pcwps`, then switch to the **Termux:X11** app — WPS is drawing in there.
@@ -109,6 +111,54 @@ you have run `termux-setup-storage` in Termux, so you can open documents from
 Downloads and save back to them.
 
 ---
+
+## Starting WPS on boot
+
+```bash
+bash scripts/install-autostart.sh              # warm start (recommended)
+BOOT_MODE=full bash scripts/install-autostart.sh
+BOOT_APP=et    bash scripts/install-autostart.sh
+bash scripts/install-autostart.sh --uninstall
+```
+
+This needs **[Termux:Boot](https://f-droid.org/packages/com.termux.boot/)** — a
+third companion app, separate from Termux and Termux:X11. Install it and **open it
+once**; until it has been launched at least one time it will not run anything.
+The installer checks for it and stops with the download links if it is missing.
+
+| | `BOOT_MODE=warm` (default) | `BOOT_MODE=full` |
+|---|---|---|
+| On boot | container, X server and WPS all start | same, plus the window is brought to the front |
+| You see | nothing — your home screen as usual | WPS, on screen |
+| Opening Termux:X11 later | WPS is already there, instantly | — |
+
+**Warm is the recommendation.** WPS is genuinely running and drawing; the only
+thing deferred is the window. You get the startup time back without anything
+appearing over what you were doing.
+
+### Android will fight you on this
+
+Three settings decide whether a boot hook survives, and none of them are this
+repo's to set:
+
+1. **Battery optimisation** — Settings → Apps → Termux → Battery → *Unrestricted*.
+   Without it Android suspends Termux seconds after boot and the session dies
+   half-started. You already have DontKillMyApp — use it to confirm this sticks.
+2. **Autostart** — on HyperOS/MIUI, ColorOS and OneUI this is a *separate* toggle
+   from battery optimisation, usually Settings → Apps → Permissions → Autostart.
+3. **`BOOT_MODE=full` only:** since Android 10 an app cannot foreground an
+   activity from the background without permission. Grant Termux:X11 *Display
+   over other apps*, or the window will not surface — WPS will still be running,
+   so opening Termux:X11 shows it immediately. Warm mode sidesteps this entirely.
+
+The hook holds a `termux-wake-lock` (released by `pcwps stop`) and waits 10
+seconds before starting, because storage is not always mounted the instant
+Termux:Boot fires. Test it without rebooting:
+
+```bash
+bash ~/.termux/boot/10-pcwps
+cat ~/.cache/pc-wps/boot.log
+```
 
 ## Reusing the build on another device
 
@@ -164,6 +214,12 @@ by default; add more with `apt-get install fonts-…` inside the container.
 
 **No sound** — PulseAudio didn't start. `pcwps stop`, then `pcwps`.
 
+**Nothing starts on boot** — check `~/.cache/pc-wps/boot.log` first; if it is
+empty, Termux:Boot never ran the hook. Either the app has never been opened
+(it must be launched once after install), or Android killed Termux before the
+hook finished — see the three settings under
+[Starting WPS on boot](#starting-wps-on-boot).
+
 **Slow** — proot has no hardware GL, so everything is software-rendered
 (`LIBGL_ALWAYS_SOFTWARE=1`). It is usable for documents, not for animation-heavy
 presentations. On a rooted device, a real container (chroot) is substantially
@@ -201,6 +257,7 @@ install.sh                         run this in Termux — orchestrates everythin
 scripts/debian-setup.sh            runs inside the container: XFCE, fonts, WPS
 scripts/start-wps-session          runs inside the container: starts the session
 scripts/pcwps.in                   template for the `pcwps` launcher
+scripts/install-autostart.sh       install/remove the Termux:Boot hook
 scripts/export-rootfs.sh           package the built environment into one file
 scripts/import-rootfs.sh           restore that file on another device
 docs/why-the-xiaomi-apk-fails.md   why com.xiaomi.wpslauncher can't work here
