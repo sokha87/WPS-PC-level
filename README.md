@@ -89,6 +89,20 @@ TRIM_MUI=en_US bash install.sh   # keep only the English WPS UI language pack
    Budget 20–40 minutes on a decent connection. Most of it is downloading the
    Debian rootfs and the ~350 MB WPS package.
 
+## Updating
+
+`git pull` alone is not enough. The things that run live outside this
+repository — `pcwps` is generated into `$PREFIX/bin`, and `start-wps-session`
+is installed inside the container — so after pulling, copy them across:
+
+```bash
+git pull
+bash scripts/update-launcher.sh
+```
+
+That takes a second and touches no packages. Only re-run `install.sh` when the
+container itself needs rebuilding.
+
 ## Use
 
 ```bash
@@ -331,6 +345,7 @@ and would rather not be given a desktop.
 ```
 install.sh                         run this in Termux — orchestrates everything
 scripts/common.sh                  shared helpers (locating the container)
+scripts/update-launcher.sh         re-apply repo changes without rebuilding
 scripts/debian-setup.sh            runs inside the container: XFCE, fonts, WPS
 scripts/start-wps-session          runs inside the container: starts the session
 scripts/pcwps.in                   template for the `pcwps` launcher
